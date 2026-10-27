@@ -2,7 +2,7 @@ name: EUDR status probe
 
 on:
   schedule:
-    - cron: "*/10 * * * *"   # GitHub may start scheduled runs a few minutes late
+    - cron: "7,17,27,37,47,57 * * * *"   # GitHub may start scheduled runs a few minutes late
   workflow_dispatch:
 
 permissions:
