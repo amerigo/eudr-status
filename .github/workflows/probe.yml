@@ -1,0 +1,56 @@
+name: EUDR status probe
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"   # GitHub may start scheduled runs a few minutes late
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: eudr-status-probe
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Restore result history
+        run: |
+          git fetch origin status-data --depth=1 || true
+          git show origin/status-data:status.json > site/status.json 2>/dev/null || rm -f site/status.json
+
+      - name: Run checks
+        env:
+          EUDR_ACC_USERNAME: ${{ secrets.EUDR_ACC_USERNAME }}
+          EUDR_ACC_AUTH_KEY: ${{ secrets.EUDR_ACC_AUTH_KEY }}
+          EUDR_ACC_CLIENT_ID: ${{ secrets.EUDR_ACC_CLIENT_ID }}
+        run: python3 probe.py site/status.json
+
+      - name: Save result history
+        # A single-commit branch keeps the repository small while the history grows.
+        run: |
+          cp site/status.json /tmp/status.json
+          git config user.name "eudr-status-probe"
+          git config user.email "eudr-status-probe@users.noreply.github.com"
+          git checkout --orphan status-data-new
+          git rm -rf --cached . > /dev/null
+          cp /tmp/status.json status.json
+          git add status.json
+          git commit -m "Probe results $(date -u +%Y-%m-%dT%H:%MZ)" > /dev/null
+          git push --force origin HEAD:status-data
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deploy
+        uses: actions/deploy-pages@v4
