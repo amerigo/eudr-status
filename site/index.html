@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EUDR Information System status | Sourcemap</title>
+<meta name="description" content="Independent availability checks of the EU's EUDR Information System (TRACES NT), run by Sourcemap.">
+<style>
+@font-face { font-family: "Montserrat"; src: url("assets/fonts/Montserrat-Regular.ttf") format("truetype"); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: "Montserrat"; src: url("assets/fonts/Montserrat-Bold.ttf") format("truetype"); font-weight: 700; font-style: normal; font-display: swap; }
+@font-face { font-family: "Montserrat"; src: url("assets/fonts/Montserrat-Italic.ttf") format("truetype"); font-weight: 400; font-style: italic; font-display: swap; }
+
+:root {
+  color-scheme: light;
+  --bg: #F7F8FA;
+  --surface: #FFFFFF;
+  --ink: #12213F;
+  --ink-soft: #4E5A74;
+  --rule: #DDE1E8;
+  --track: #E9ECF1;
+  --up: #2F8F5B;
+  --slow: #C98A1B;
+  --down: #C23B2E;
+  --missing: #9AA3B5;
+  --focus: #4AACDB;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --bg: #0E1A33;
+    --surface: #12213F;
+    --ink: #F4F5F7;
+    --ink-soft: #AEB6C8;
+    --rule: #2A3858;
+    --track: #1C2C4D;
+    --up: #48B47A;
+    --slow: #E0A63A;
+    --down: #E2604F;
+    --missing: #6F7A93;
+    --focus: #4AACDB;
+  }
+}
+
+* { box-sizing: border-box; }
+html { background: var(--bg); }
+body {
+  margin: 0;
+  font-family: "Montserrat", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-weight: 400;
+  color: var(--ink);
+  background: var(--bg);
+  line-height: 1.5;
+}
+.wrap { max-width: 960px; margin: 0 auto; padding: 32px 24px 48px; }
+
+header.site { padding: 8px 0 40px; }
+header.site img { width: 180px; height: auto; display: block; }
+
+.hero h1 {
+  font-weight: 700;
+  font-size: clamp(2rem, 5vw, 3.25rem);
+  line-height: 1.1;
+  margin: 0 0 12px;
+  max-width: 18ch;
+}
+.hero .lede { font-style: italic; color: var(--ink-soft); margin: 0 0 6px; max-width: 64ch; }
+.hero .meta { color: var(--ink-soft); margin: 0; font-size: 0.95rem; }
+.hero .mark {
+  display: inline-block; width: 0.5em; height: 0.5em; border-radius: 50%;
+  margin-right: 0.35em; vertical-align: 0.18em;
+}
+
+section.env { margin-top: 56px; }
+section.env h2 { font-weight: 700; font-size: 1.35rem; margin: 0 0 4px; }
+section.env > p { color: var(--ink-soft); margin: 0 0 20px; max-width: 64ch; }
+
+.check {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px 24px;
+  padding: 18px 0;
+  border-top: 1px solid var(--rule);
+}
+.check:last-child { border-bottom: 1px solid var(--rule); }
+.check h3 { font-weight: 700; font-size: 1rem; margin: 0; }
+.check .desc { color: var(--ink-soft); font-size: 0.92rem; margin: 2px 0 0; }
+.check .state { font-weight: 700; text-align: right; white-space: nowrap; }
+.check .state .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; }
+.check .note { grid-column: 1 / -1; font-size: 0.92rem; margin: 0; }
+.check .figures { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 4px 24px; font-size: 0.88rem; color: var(--ink-soft); }
+
+.strip {
+  grid-column: 1 / -1;
+  display: flex; align-items: flex-end; gap: 1px;
+  height: 36px; margin-top: 8px;
+  background: linear-gradient(to top, var(--track) 0 2px, transparent 2px);
+}
+.strip span { flex: 1 1 0; min-width: 1px; border-radius: 1px 1px 0 0; }
+.strip span.empty { background: transparent; }
+.axis { grid-column: 1 / -1; display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--ink-soft); }
+
+.s-up { background: var(--up); }
+.s-slow { background: var(--slow); }
+.s-down { background: var(--down); }
+.s-unpublished, .s-unconfigured { background: var(--missing); }
+.t-up { color: var(--up); }
+.t-slow { color: var(--slow); }
+.t-down { color: var(--down); }
+.t-unpublished, .t-unconfigured { color: var(--ink-soft); }
+
+.notice { padding: 20px 0; border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); color: var(--ink-soft); }
+
+footer.site { margin-top: 64px; color: var(--ink-soft); font-size: 0.88rem; max-width: 72ch; }
+footer.site p { margin: 0 0 10px; }
+footer.site a { color: inherit; }
+a:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+@media (max-width: 560px) {
+  .wrap { padding: 24px 16px 40px; }
+  .check { grid-template-columns: 1fr; }
+  .check .state { text-align: left; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="site">
+    <a href="https://sourcemap.com">
+      <picture>
+        <source srcset="assets/sourcemap-logo-white.png" media="(prefers-color-scheme: dark)">
+        <img src="assets/sourcemap-logo-navy.png" alt="Sourcemap">
+      </picture>
+    </a>
+  </header>
+
+  <main id="app" aria-live="polite">
+    <div class="hero">
+      <h1>EUDR Information System status</h1>
+      <p class="meta">Loading the latest results.</p>
+    </div>
+  </main>
+
+  <footer class="site">
+    <p>Sourcemap runs these checks from its own servers. The results show what the EUDR Information System returned to those servers. The European Commission operates the system, and this page is not an official Commission status page.</p>
+    <p>Production is checked without credentials, so a result there shows that the system answered. Signed submissions to production are outside what this page measures.</p>
+    <p>Times are in UTC. The colored bars show the last 24 hours, and bar height shows response time.</p>
+  </footer>
+</div>
+
+<script>
+const LABELS = {
+  up: "Up",
+  slow: "Slow",
+  down: "Down",
+  unpublished: "Not published",
+  unconfigured: "Not configured",
+};
+// Worst first: red, then yellow, then missing data, then green.
+const RANK = { down: 0, slow: 1, unpublished: 2, unconfigured: 2, up: 3 };
+
+const ENVS = {
+  production: {
+    title: "Production",
+    intro: "The live system operators use to submit due diligence statements. Checked without credentials.",
+  },
+  acceptance: {
+    title: "Acceptance",
+    intro: "The Commission's test environment. Sourcemap also sends a signed test request here.",
+  },
+};
+
+const app = document.getElementById("app");
+
+function esc(s) {
+  return String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function fmtTime(iso) {
+  const d = new Date(iso);
+  return d.toLocaleString("en-US", { timeZone: "UTC", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }) + " UTC";
+}
+
+function availability(history, sinceMs) {
+  const rows = history.filter(h => Date.parse(h.t) >= sinceMs && (h.state === "up" || h.state === "slow" || h.state === "down"));
+  if (!rows.length) return null;
+  const ok = rows.filter(h => h.state !== "down").length;
+  return (100 * ok / rows.length).toFixed(ok === rows.length ? 0 : 1);
+}
+
+function strip(history, interval, nowMs) {
+  const slots = Math.round(24 * 60 / interval);
+  const start = nowMs - 24 * 3600 * 1000;
+  const buckets = new Array(slots).fill(null);
+  for (const h of history) {
+    const t = Date.parse(h.t);
+    if (t < start) continue;
+    const i = Math.min(slots - 1, Math.floor((t - start) / (interval * 60000)));
+    buckets[i] = h;
+  }
+  // Scale bar height to the 95th percentile so one very slow response does not flatten the rest.
+  const times = history.filter(h => h.ms).map(h => h.ms).sort((a, b) => a - b);
+  const maxMs = Math.max(1000, times[Math.floor(times.length * 0.95)] || 0);
+  return buckets.map(h => {
+    if (!h) return '<span class="empty"></span>';
+    const pct = h.ms ? Math.min(100, Math.max(25, Math.round(100 * h.ms / maxMs))) : 100;
+    const tip = `${fmtTime(h.t)}: ${LABELS[h.state] || h.state}${h.ms ? `, ${h.ms} ms` : ""}`;
+    return `<span class="s-${esc(h.state)}" style="height:${pct}%" title="${esc(tip)}"></span>`;
+  }).join("");
+}
+
+function headline(checks) {
+  const prod = checks.filter(c => c.env === "production" && c.history.length);
+  const measured = prod.map(c => c.history.at(-1).state).filter(s => s === "up" || s === "slow" || s === "down");
+  if (!measured.length) return { text: "No production results yet", state: "unconfigured" };
+  if (measured.includes("down")) return { text: "Production is not fully reachable", state: "down" };
+  if (measured.includes("slow")) return { text: "Production is responding slowly", state: "slow" };
+  return { text: "Production is reachable", state: "up" };
+}
+
+function render(data) {
+  const nowMs = Date.parse(data.generated);
+  const interval = data.interval_minutes || 10;
+  const checks = data.checks || [];
+  const head = headline(checks);
+
+  let html = `<div class="hero">
+    <h1><span class="mark s-${head.state}" aria-hidden="true"></span>${esc(head.text)}</h1>
+    <p class="lede">Independent availability checks of the EU's EUDR Information System (TRACES NT), run by Sourcemap.</p>
+    <p class="meta">Last checked ${esc(fmtTime(data.generated))}. Checks run every ${interval} minutes.</p>
+  </div>`;
+
+  for (const env of ["production", "acceptance"]) {
+    const list = checks.filter(c => c.env === env && c.history.length)
+      .sort((a, b) => RANK[a.history.at(-1).state] - RANK[b.history.at(-1).state]);
+    if (!list.length) continue;
+    html += `<section class="env" aria-labelledby="h-${env}">
+      <h2 id="h-${env}">${ENVS[env].title}</h2>
+      <p>${ENVS[env].intro}</p>`;
+    for (const c of list) {
+      const last = c.history.at(-1);
+      const day = availability(c.history, nowMs - 24 * 3600 * 1000);
+      const week = availability(c.history, nowMs - 7 * 24 * 3600 * 1000);
+      const figs = [];
+      if (last.ms) figs.push(`Last response ${last.ms.toLocaleString("en-US")} ms`);
+      if (day !== null) figs.push(`Available ${day}% of the last 24 hours`);
+      if (week !== null) figs.push(`${week}% of the last 7 days`);
+      html += `<article class="check">
+        <div><h3>${esc(c.name)}</h3><p class="desc">${esc(c.description)}</p></div>
+        <div class="state t-${esc(last.state)}"><span class="dot s-${esc(last.state)}" aria-hidden="true"></span>${esc(LABELS[last.state] || last.state)}</div>
+        ${last.note ? `<p class="note">${esc(last.note)}</p>` : ""}
+        ${figs.length ? `<div class="figures">${figs.map(f => `<span>${esc(f)}</span>`).join("")}</div>` : ""}
+        <div class="strip" role="img" aria-label="Results for the last 24 hours">${strip(c.history, interval, nowMs)}</div>
+        <div class="axis" aria-hidden="true"><span>24 hours ago</span><span>Now</span></div>
+      </article>`;
+    }
+    html += `</section>`;
+  }
+  app.innerHTML = html;
+}
+
+fetch("status.json", { cache: "no-store" })
+  .then(r => {
+    if (r.status === 404) return null;
+    if (!r.ok) throw new Error(r.status);
+    return r.json();
+  })
+  .then(data => {
+    if (!data || !data.checks || !data.checks.length) {
+      app.innerHTML = `<div class="hero"><h1>EUDR Information System status</h1></div>
+        <p class="notice">No results yet. Results appear here after the first scheduled check.</p>`;
+      return;
+    }
+    render(data);
+  })
+  .catch(() => {
+    app.innerHTML = `<div class="hero"><h1>EUDR Information System status</h1></div>
+      <p class="notice">The latest results could not be loaded. Reload the page to try again.</p>`;
+  });
+</script>
+</body>
+</html>
