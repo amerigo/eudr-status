@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>EUDR Information System status | Sourcemap</title>
-<meta name="description" content="Independent availability checks of the EU's EUDR Information System (TRACES NT), run by Sourcemap.">
+<title>EUDR TRACES status | Sourcemap</title>
+<meta name="description" content="EUDR TRACES status: independent availability checks of the EU's EUDR Information System (TRACES NT), run by Sourcemap.">
 <style>
 @font-face { font-family: "Montserrat"; src: url("assets/fonts/Montserrat-Regular.ttf") format("truetype"); font-weight: 400; font-style: normal; font-display: swap; }
 @font-face { font-family: "Montserrat"; src: url("assets/fonts/Montserrat-Bold.ttf") format("truetype"); font-weight: 700; font-style: normal; font-display: swap; }
@@ -56,6 +56,7 @@ body {
 header.site { padding: 8px 0 40px; }
 header.site img { width: 180px; height: auto; display: block; }
 
+.hero .title { font-weight: 700; font-size: 1rem; color: var(--ink-soft); margin: 0 0 10px; }
 .hero h1 {
   font-weight: 700;
   font-size: clamp(2rem, 5vw, 3.25rem);
@@ -135,17 +136,18 @@ a:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 
   <main id="app" aria-live="polite">
     <div class="hero">
-      <h1>EUDR Information System status</h1>
+      <h1>EUDR TRACES status</h1>
       <p class="meta">Loading the latest results.</p>
     </div>
   </main>
 
   <footer class="site">
-    <p>Sourcemap checks EUDR TRACES NT responses from its own servers and without credentials. </p>
+    <p>&copy; <span id="year">2026</span> Sourcemap Inc. All rights reserved.</p>
   </footer>
 </div>
 
 <script>
+document.getElementById("year").textContent = new Date().getUTCFullYear();
 const LABELS = {
   up: "Up",
   slow: "Slow",
@@ -222,6 +224,7 @@ function render(data) {
   const head = headline(checks);
 
   let html = `<div class="hero">
+    <p class="title">EUDR TRACES status</p>
     <h1><span class="mark s-${head.state}" aria-hidden="true"></span>${esc(head.text)}</h1>
     <p class="lede">Independent availability checks of the EU's EUDR Information System (TRACES NT), run by Sourcemap.</p>
     <p class="meta">Last checked ${esc(fmtTime(data.generated))}. Checks run every ${interval} minutes.</p>
@@ -264,14 +267,14 @@ fetch("status.json", { cache: "no-store" })
   })
   .then(data => {
     if (!data || !data.checks || !data.checks.length) {
-      app.innerHTML = `<div class="hero"><h1>EUDR Information System status</h1></div>
+      app.innerHTML = `<div class="hero"><h1>EUDR TRACES status</h1></div>
         <p class="notice">No results yet. Results appear here after the first scheduled check.</p>`;
       return;
     }
     render(data);
   })
   .catch(() => {
-    app.innerHTML = `<div class="hero"><h1>EUDR Information System status</h1></div>
+    app.innerHTML = `<div class="hero"><h1>EUDR TRACES status</h1></div>
       <p class="notice">The latest results could not be loaded. Reload the page to try again.</p>`;
   });
 </script>
