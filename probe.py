@@ -2,8 +2,9 @@
 """Probe the EUDR Information System (TRACES NT) and record the results.
 
 Each run checks every endpoint once and appends one result per check to
-status.json. The status page reads that file. Only the Python standard
-library is used, so the script runs on any host with Python 3.9 or later.
+status.json. The status page reads that file. It needs Python 3.9 or later and the standard
+library for the checks. When a server omits an intermediate certificate, the
+probe fetches it with the `cryptography` package (pip install cryptography).
 
 Production is checked without credentials: TLS, the web application, and
 the published WSDL files. Acceptance also gets an authenticated call to the
@@ -28,6 +29,7 @@ import ssl
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 
 PROD = "eudr.webcloud.ec.europa.eu"
@@ -55,8 +57,69 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
         return None
 
 
-OPENER = urllib.request.build_opener(NoRedirect)
 USER_AGENT = "Sourcemap-EUDR-status-probe/1.0 (+https://sourcemap.com)"
+
+# Intermediate certificates fetched for hosts that do not send their full chain.
+# Browsers fetch a missing intermediate from the address in the certificate
+# (the AIA field). Python does not, so the probe does the same step itself.
+EXTRA_CA = {}
+
+
+def tls_context(host):
+    ctx = ssl.create_default_context()
+    if EXTRA_CA.get(host):
+        ctx.load_verify_locations(cadata=EXTRA_CA[host])
+    return ctx
+
+
+def opener_for(url):
+    host = urllib.parse.urlsplit(url).hostname
+    return urllib.request.build_opener(NoRedirect, urllib.request.HTTPSHandler(context=tls_context(host)))
+
+
+def fetch_intermediates(host):
+    """Follow the AIA 'CA Issuers' links from the server certificate. Return PEM text."""
+    from cryptography import x509
+    from cryptography.hazmat.primitives.serialization import Encoding, pkcs7
+    from cryptography.x509.oid import AuthorityInformationAccessOID, ExtensionOID
+
+    unverified = ssl.create_default_context()
+    unverified.check_hostname = False
+    unverified.verify_mode = ssl.CERT_NONE
+    with socket.create_connection((host, 443), timeout=TIMEOUT_S) as sock:
+        with unverified.wrap_socket(sock, server_hostname=host) as tls:
+            cert = x509.load_der_x509_certificate(tls.getpeercert(binary_form=True))
+
+    pems = []
+    for _ in range(4):
+        try:
+            aia = cert.extensions.get_extension_for_oid(ExtensionOID.AUTHORITY_INFORMATION_ACCESS).value
+        except x509.ExtensionNotFound:
+            break
+        urls = [d.access_location.value for d in aia
+                if d.access_method == AuthorityInformationAccessOID.CA_ISSUERS]
+        if not urls:
+            break
+        req = urllib.request.Request(urls[0], headers={"User-Agent": USER_AGENT})
+        with urllib.request.urlopen(req, timeout=TIMEOUT_S) as resp:
+            data = resp.read()
+        issuer = None
+        for load in (x509.load_der_x509_certificate, x509.load_pem_x509_certificate):
+            try:
+                issuer = load(data)
+                break
+            except ValueError:
+                pass
+        if issuer is None:  # some CAs publish a PKCS#7 bundle
+            bundle = pkcs7.load_der_pkcs7_certificates(data)
+            issuer = bundle[0] if bundle else None
+        if issuer is None:
+            break
+        pems.append(issuer.public_bytes(Encoding.PEM).decode())
+        if issuer.issuer == issuer.subject:
+            break
+        cert = issuer
+    return "".join(pems)
 
 
 def now_iso():
@@ -68,29 +131,51 @@ def http_get(url):
     req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
     start = time.monotonic()
     try:
-        with OPENER.open(req, timeout=TIMEOUT_S) as resp:
+        with opener_for(url).open(req, timeout=TIMEOUT_S) as resp:
             resp.read(65536)
             code = resp.status
     except urllib.error.HTTPError as e:
         code = e.code
     except Exception as e:  # DNS failure, refused connection, timeout, TLS error
-        return None, round((time.monotonic() - start) * 1000), type(e).__name__
+        reason = getattr(e, "reason", e)
+        detail = getattr(reason, "verify_message", None) or type(reason).__name__
+        return None, round((time.monotonic() - start) * 1000), detail
     return code, round((time.monotonic() - start) * 1000), None
 
 
-def check_tls(host):
+def _handshake(host):
     start = time.monotonic()
+    with socket.create_connection((host, 443), timeout=TIMEOUT_S) as sock:
+        with tls_context(host).wrap_socket(sock, server_hostname=host) as tls:
+            cert = tls.getpeercert()
+    return cert, round((time.monotonic() - start) * 1000)
+
+
+def check_tls(host):
+    completed = False
     try:
-        ctx = ssl.create_default_context()
-        with socket.create_connection((host, 443), timeout=TIMEOUT_S) as sock:
-            with ctx.wrap_socket(sock, server_hostname=host) as tls:
-                cert = tls.getpeercert()
+        cert, ms = _handshake(host)
+    except ssl.SSLCertVerificationError as e:
+        reason = e.verify_message or str(e)
+        if "local issuer" not in reason:
+            # Expired, wrong hostname, or untrusted root: a real certificate fault.
+            return {"state": "down", "ms": None, "note": f"Certificate rejected: {reason}"}
+        try:
+            EXTRA_CA[host] = fetch_intermediates(host)
+            cert, ms = _handshake(host)
+            completed = True
+        except Exception as e2:
+            EXTRA_CA.pop(host, None)
+            return {"state": "down", "ms": None,
+                    "note": f"Certificate rejected: {reason}; fetching the missing intermediate failed ({type(e2).__name__})"}
     except Exception as e:
         return {"state": "down", "ms": None, "note": f"TLS connection failed ({type(e).__name__})"}
-    ms = round((time.monotonic() - start) * 1000)
+
     expires = dt.datetime.fromtimestamp(ssl.cert_time_to_seconds(cert["notAfter"]), dt.timezone.utc)
     days = (expires - dt.datetime.now(dt.timezone.utc)).days
     note = f"Certificate valid for {days} more days"
+    if completed:
+        note += ". The server omits an intermediate certificate, which browsers fetch on their own"
     if days < CERT_WARN_DAYS:
         return {"state": "slow", "ms": ms, "note": f"Certificate expires in {days} days"}
     return {"state": "slow" if ms > SLOW_MS else "up", "ms": ms, "note": note}
@@ -176,12 +261,14 @@ def check_echo(host):
         headers={"Content-Type": "text/xml; charset=utf-8", "SOAPAction": '""', "User-Agent": USER_AGENT})
     start = time.monotonic()
     try:
-        with OPENER.open(req, timeout=TIMEOUT_S) as resp:
+        with opener_for(req.full_url).open(req, timeout=TIMEOUT_S) as resp:
             code, text = resp.status, resp.read().decode("utf-8", "replace")
     except urllib.error.HTTPError as e:
         code, text = e.code, e.read().decode("utf-8", "replace")
     except Exception as e:
-        return {"state": "down", "ms": None, "note": f"No response ({type(e).__name__})"}
+        reason = getattr(e, "reason", e)
+        detail = getattr(reason, "verify_message", None) or type(reason).__name__
+        return {"state": "down", "ms": None, "note": f"No response ({detail})"}
     ms = round((time.monotonic() - start) * 1000)
 
     status = re.search(r"<(?:\w+:)?status>\s*([^<]+?)\s*</", text)

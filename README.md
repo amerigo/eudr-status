@@ -21,6 +21,10 @@ A V3 WSDL that returns 404 shows as "Not published." The Commission's documentat
 
 Credential, timestamp, and client ID faults on the Echo call show as "Not configured." These come from the probe's setup, and the page keeps them apart from outages on the Commission's side.
 
+## Certificate chains
+
+Some servers send their own certificate without the intermediate certificate that links it to a trusted root. Browsers fetch the missing intermediate on their own, so the site works in a browser. Python does not. When the probe sees this error, it fetches the intermediate from the address listed in the server certificate, retries, and notes the gap on the page. Any other certificate error, such as an expired certificate or a wrong hostname, counts as down.
+
 ## Limits
 
 Production is checked without credentials. An "Up" result there means the server answered. It does not confirm that signed DDS submissions succeed. When Sourcemap has production credentials, add a narrow retrieval call that should return an empty result. The Commission's documentation recommends this as the production connectivity test.
@@ -42,7 +46,7 @@ GitHub starts scheduled runs late during busy periods. For tighter timing, run t
 
 ## Setup on a Sourcemap server
 
-Python 3.9 or later is enough. There are no dependencies.
+Use Python 3.9 or later, and install one package with `pip install cryptography`. The probe uses it only when a server omits an intermediate certificate.
 
 ```
 */10 * * * * cd /opt/eudr-status && EUDR_ACC_USERNAME=... EUDR_ACC_AUTH_KEY=... EUDR_ACC_CLIENT_ID=... python3 probe.py site/status.json
