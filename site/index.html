@@ -98,6 +98,22 @@ section.env > p { color: var(--ink-soft); margin: 0 0 20px; max-width: 64ch; }
 }
 .strip span { flex: 1 1 0; min-width: 1px; border-radius: 1px 1px 0 0; }
 .strip span.empty { background: transparent; }
+.strip span:not(.empty) { cursor: pointer; }
+.strip span.active { outline: 2px solid var(--ink); outline-offset: 1px; }
+.tip {
+  position: fixed; z-index: 10; pointer-events: none;
+  max-width: 300px; padding: 12px 14px;
+  background: var(--surface); color: var(--ink);
+  border: 1px solid var(--rule); border-radius: 6px;
+  box-shadow: 0 6px 20px rgba(18, 33, 63, 0.18);
+  font-size: 0.88rem; line-height: 1.45;
+}
+.tip[hidden] { display: none; }
+.tip .when { color: var(--ink-soft); margin: 0 0 4px; }
+.tip .what { font-weight: 700; margin: 0 0 4px; }
+.tip .what .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 7px; }
+.tip p { margin: 0 0 3px; }
+.tip p:last-child { margin-bottom: 0; }
 .axis { grid-column: 1 / -1; display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--ink-soft); }
 
 .s-up { background: var(--up); }
@@ -140,6 +156,8 @@ a:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
       <p class="meta">Loading the latest results.</p>
     </div>
   </main>
+
+  <div class="tip" id="tip" role="tooltip" hidden></div>
 
   <footer class="site">
     <p>&copy; <span id="year">2026</span> Sourcemap Inc. All rights reserved.</p>
@@ -187,7 +205,13 @@ function availability(history, sinceMs) {
   return (100 * ok / rows.length).toFixed(ok === rows.length ? 0 : 1);
 }
 
-function strip(history, interval, nowMs) {
+const ENTRIES = [];  // bar index -> {check, entry}, filled while rendering
+
+// Matches the thresholds in probe.py.
+function slowLimit(checkId) { return checkId === "acc-echo" ? 5000 : 3000; }
+
+function strip(check, interval, nowMs) {
+  const history = check.history;
   const slots = Math.round(24 * 60 / interval);
   const start = nowMs - 24 * 3600 * 1000;
   const buckets = new Array(slots).fill(null);
@@ -203,8 +227,8 @@ function strip(history, interval, nowMs) {
   return buckets.map(h => {
     if (!h) return '<span class="empty"></span>';
     const pct = h.ms ? Math.min(100, Math.max(25, Math.round(100 * h.ms / maxMs))) : 100;
-    const tip = `${fmtTime(h.t)}: ${LABELS[h.state] || h.state}${h.ms ? `, ${h.ms} ms` : ""}`;
-    return `<span class="s-${esc(h.state)}" style="height:${pct}%" title="${esc(tip)}"></span>`;
+    const id = ENTRIES.push({ check, entry: h }) - 1;
+    return `<span class="s-${esc(h.state)}" style="height:${pct}%" data-e="${id}"></span>`;
   }).join("");
 }
 
@@ -250,7 +274,7 @@ function render(data) {
         <div class="state t-${esc(last.state)}"><span class="dot s-${esc(last.state)}" aria-hidden="true"></span>${esc(LABELS[last.state] || last.state)}</div>
         ${last.note ? `<p class="note">${esc(last.note)}</p>` : ""}
         ${figs.length ? `<div class="figures">${figs.map(f => `<span>${esc(f)}</span>`).join("")}</div>` : ""}
-        <div class="strip" role="img" aria-label="Results for the last 24 hours">${strip(c.history, interval, nowMs)}</div>
+        <div class="strip" role="img" aria-label="Results for the last 24 hours. Point at a bar for details.">${strip(c, interval, nowMs)}</div>
         <div class="axis" aria-hidden="true"><span>24 hours ago</span><span>Now</span></div>
       </article>`;
     }
@@ -258,6 +282,66 @@ function render(data) {
   }
   app.innerHTML = html;
 }
+
+function seconds(ms) {
+  return ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(1)} seconds`;
+}
+
+function tipHtml({ check, entry: h }) {
+  const lines = [];
+  if (h.ms) lines.push(`Response time ${seconds(h.ms)}`);
+  if (h.state === "slow" && h.ms > slowLimit(check.id)) {
+    lines.push(`Slower than the ${slowLimit(check.id) / 1000}-second limit for a normal response`);
+  }
+  if (h.code) lines.push(`HTTP status ${h.code}`);
+  if (h.note) lines.push(h.note);
+  return `<p class="when">${esc(check.name)}, ${esc(fmtTime(h.t))}</p>
+    <p class="what t-${esc(h.state)}"><span class="dot s-${esc(h.state)}"></span>${esc(LABELS[h.state] || h.state)}</p>
+    ${lines.map(l => `<p>${esc(l)}</p>`).join("")}`;
+}
+
+const tip = document.getElementById("tip");
+let activeBar = null;
+
+function showTip(bar, x, y) {
+  const item = ENTRIES[bar.dataset.e];
+  if (!item) return;
+  if (activeBar !== bar) {
+    if (activeBar) activeBar.classList.remove("active");
+    activeBar = bar;
+    bar.classList.add("active");
+    tip.innerHTML = tipHtml(item);
+  }
+  tip.hidden = false;
+  const pad = 14;
+  const w = tip.offsetWidth, hgt = tip.offsetHeight;
+  let left = x + pad, top = y - hgt - pad;
+  if (left + w > window.innerWidth - 8) left = x - w - pad;
+  if (left < 8) left = 8;
+  if (top < 8) top = y + pad;
+  tip.style.left = `${left}px`;
+  tip.style.top = `${top}px`;
+}
+
+function hideTip() {
+  tip.hidden = true;
+  if (activeBar) activeBar.classList.remove("active");
+  activeBar = null;
+}
+
+app.addEventListener("pointermove", e => {
+  const bar = e.target.closest(".strip span[data-e]");
+  if (bar) showTip(bar, e.clientX, e.clientY);
+  else if (e.pointerType === "mouse") hideTip();
+});
+app.addEventListener("pointerleave", e => { if (e.pointerType === "mouse") hideTip(); });
+// On touch screens, a tap shows the details and a tap elsewhere hides them.
+document.addEventListener("pointerdown", e => {
+  const bar = e.target.closest(".strip span[data-e]");
+  if (bar) showTip(bar, e.clientX, e.clientY);
+  else hideTip();
+});
+window.addEventListener("scroll", hideTip, { passive: true });
 
 fetch("status.json", { cache: "no-store" })
   .then(r => {
